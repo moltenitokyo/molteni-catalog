@@ -15,7 +15,7 @@ const STORAGE_URL = supabaseUrl ? `${supabaseUrl}/storage/v1/object/public/${STO
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
 // お問い合わせ先URL
-const CONTACT_URL = "https://www.molteni.co.jp/contact/"; 
+const CONTACT_URL = "mailto:info@molteni.jp?subject=【「ここに製品名をご入力ください」についてのお問い合わせ】"; 
 
 // テーマ定数
 const THEME = {
