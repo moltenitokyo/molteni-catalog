@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   Plus, Edit3, Trash2, X, Upload, ExternalLink, RefreshCw, 
   FileText, ArrowRight, Wifi, WifiOff, Loader, Link as LinkIcon, 
-  Check, ChevronLeft, PlayCircle, ShoppingBag, Code, Image as ImageIcon
+  Check, ChevronLeft, PlayCircle, ShoppingBag, Code, Image as ImageIcon,
+  Search, Filter, LayoutGrid, List
 } from 'lucide-react';
 
 // --- 設定エリア ---
@@ -14,7 +15,7 @@ const STORAGE_URL = supabaseUrl ? `${supabaseUrl}/storage/v1/object/public/${STO
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
 // お問い合わせ先URL
-const CONTACT_URL = "https://molteni.it/store/tokyo-flagship-store/jp/?contact=true&request=appointment"; 
+const CONTACT_URL = "https://www.molteni.co.jp/contact/"; 
 
 // テーマ定数
 const THEME = {
@@ -57,6 +58,12 @@ export default function App() {
   const [currentProduct, setCurrentProduct] = useState(null);
   const [status, setStatus] = useState('Init...');
   const [baseUrl, setBaseUrl] = useState('');
+  const [copyFeedback, setCopyFeedback] = useState(null);
+
+  // ★ 検索・フィルター・レイアウト用のState（初期値を'list'に固定）
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterCollection, setFilterCollection] = useState('All');
+  const [layoutMode, setLayoutMode] = useState('list'); 
 
   const mainImageInputRef = useRef(null);
   const secondImageInputRef = useRef(null);
@@ -85,7 +92,8 @@ export default function App() {
 
   const fetchProducts = async () => {
     setStatus('Syncing...');
-    const { data, error } = await supabase.from('products').select('*').order('id', { ascending: true });
+    // 新着順（降順）
+    const { data, error } = await supabase.from('products').select('*').order('id', { ascending: false });
     if (error) { console.error(error); setStatus('Error'); }
     else { setProducts(data || []); setStatus('Online'); checkRouting(data || []); }
   };
@@ -128,6 +136,14 @@ export default function App() {
     }
   };
 
+  const handleCopyLink = (id) => {
+    const url = `${baseUrl}?id=${id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopyFeedback(id);
+      setTimeout(() => setCopyFeedback(null), 2000);
+    });
+  };
+
   // ---------------------------------------------------------
   // サブビュー: Product Page
   // ---------------------------------------------------------
@@ -139,46 +155,40 @@ export default function App() {
     return (
       <div className="fixed inset-0 w-full h-full bg-[#f5f5f5] md:bg-[#e5e5e5] flex justify-center items-center z-[100]">
         
-        {/* 
-           ★ お問い合わせボタン (position: fixed)
-           親要素（スマホ枠）の外に出し、画面全体に対して固定します。
-           これにより、スクロールしても常に右下に表示され続けます。
-        */}
-        <a 
-          href={CONTACT_URL}
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            position: 'fixed', // ★画面に固定
-            bottom: '30px',
-            right: '30px',
-            backgroundColor: 'rgba(55, 57, 59, 0.9)', 
-            color: '#ffffff',
-            padding: '14px 20px', 
-            borderRadius: '0',
-            textDecoration: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '11px',
-            fontWeight: 'bold',
-            letterSpacing: '0.05em', 
-            fontFamily: THEME.sans,
-            zIndex: 9999, // 最前面
-            backdropFilter: 'blur(4px)', 
-            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-            transition: 'background-color 0.3s',
-            cursor: 'pointer'
-          }}
-          onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(55, 57, 59, 1)'}
-          onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(55, 57, 59, 0.9)'}
-        >
-          <span>製品についてお問い合わせ</span>
-        </a>
-
         <div className="relative w-full h-full md:w-[414px] md:h-[850px] md:max-h-[95vh] bg-white md:rounded-[40px] md:border-[12px] md:border-[#1a1a1a] shadow-2xl overflow-hidden flex flex-col font-serif" style={{color: THEME.text}}>
           
-          <div className="w-full h-full overflow-y-auto overflow-x-hidden no-scrollbar bg-white flex flex-col relative z-10">
+          <a 
+            href={CONTACT_URL}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              position: 'absolute',
+              bottom: '30px',
+              right: '30px',
+              backgroundColor: 'rgba(55, 57, 59, 0.9)', 
+              color: '#ffffff',
+              padding: '14px 20px', 
+              borderRadius: '0',
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              letterSpacing: '0.05em', 
+              fontFamily: THEME.sans,
+              zIndex: 100, 
+              backdropFilter: 'blur(4px)', 
+              boxShadow: '0 4px 15px rgba(0,0,0,0.15)',
+              transition: 'background-color 0.3s',
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(55, 57, 59, 1)'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(55, 57, 59, 0.9)'}
+          >
+            <span>製品についてお問い合わせ</span>
+          </a>
+
+          <div className="w-full h-full overflow-y-auto overflow-x-hidden no-scrollbar bg-white flex flex-col">
             
             {!window.location.search.includes('id=') && (
                <button onClick={() => window.location.href = baseUrl} className="absolute top-6 left-6 z-50 bg-white/90 backdrop-blur w-10 h-10 flex items-center justify-center border border-gray-200 shadow-sm hover:bg-black hover:text-white transition-all">
@@ -186,7 +196,6 @@ export default function App() {
                </button>
             )}
             
-            {/* メイン画像 */}
             <div className="w-full relative shrink-0">
               <img 
                 src={getImageUrl(currentProduct.image) || "https://via.placeholder.com/1080x1920"} 
@@ -199,6 +208,7 @@ export default function App() {
             <div className="px-8 py-10 flex flex-col grow bg-white">
               
               <div style={{ marginBottom: '24px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                
                 <h1 style={{
                   fontFamily: THEME.serif,
                   fontSize: '36px',
@@ -225,6 +235,7 @@ export default function App() {
                   gap: '12px'
                 }}>
                   <span style={{ fontWeight: 'bold' }}>{currentProduct.collection}</span>
+                  
                   {currentProduct.designer && (
                     <span style={{ fontSize: '11px', opacity: 1, fontWeight: 'bold' }}>
                       Design : {currentProduct.designer.toUpperCase()}
@@ -384,36 +395,162 @@ export default function App() {
   // ---------------------------------------------------------
   // サブビュー: Admin
   // ---------------------------------------------------------
+  
+  // フィルター用のコレクション一覧を生成
+  const uniqueCollections = ['All', ...new Set(products.map(p => p.collection).filter(Boolean))];
+
+  // 検索・フィルター条件に合致する製品
+  const filteredProducts = products.filter(p => {
+    const matchCollection = filterCollection === 'All' || p.collection === filterCollection;
+    const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                        (p.collection && p.collection.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchCollection && matchSearch;
+  });
+
   return (
-    <div className="min-h-screen font-sans text-black">
-      <header className="px-8 py-6 border-b border-black/5 flex justify-between items-center sticky top-0 bg-[#f5f5f5]/90 backdrop-blur z-20">
+    <div className="min-h-screen font-sans text-black bg-[#f5f5f5]">
+      
+      {/* ヘッダー */}
+      <header className="px-8 py-6 border-b border-black/5 flex justify-between items-center sticky top-0 bg-white/90 backdrop-blur z-20">
         <h1 className="text-sm font-bold tracking-[0.25em]">MOLTENI <span className="opacity-40">CATALOG</span></h1>
-        <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] uppercase tracking-widest ${status === 'Online' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{status === 'Online' ? <Wifi size={12}/> : <WifiOff size={12}/>} {status}</div>
-        <div className="flex gap-2">
+        
+        <div className="flex gap-4 items-center">
+          <div className={`hidden md:flex items-center gap-2 px-3 py-1 rounded-full text-[10px] uppercase tracking-widest ${status === 'Online' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+            {status === 'Online' ? <Wifi size={12}/> : <WifiOff size={12}/>} {status}
+          </div>
           <button onClick={fetchProducts} className="p-2 opacity-30 hover:opacity-100"><RefreshCw size={14}/></button>
-          <button onClick={() => openEditor(null)} className="bg-white border px-4 py-2 text-[10px] font-bold tracking-[0.2em] uppercase hover:bg-black hover:text-white flex gap-2"><Plus size={14}/> Add New</button>
+          <button onClick={() => openEditor(null)} className="bg-black text-white px-5 py-2 text-[10px] font-bold tracking-[0.2em] uppercase hover:bg-gray-800 flex gap-2 transition-colors">
+            <Plus size={14}/> Add New
+          </button>
         </div>
       </header>
-      <main className="p-8 max-w-[1600px] mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-        {products.map(p => (
-          <div key={p.id} className="bg-white border border-black/5 group hover:shadow-lg transition duration-500 flex flex-col">
-            <div className="aspect-[4/3] relative overflow-hidden border-b border-black/5 bg-gray-50">
-              <img src={getImageUrl(p.image)} className="w-full h-full object-cover group-hover:scale-105 transition duration-700" loading="lazy" />
-              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition">
-                <button onClick={() => openEditor(p)} className="bg-white p-2 rounded-full hover:bg-black hover:text-white"><Edit3 size={14}/></button>
-                <button onClick={async () => { if(confirm('Delete?')) { await supabase.from('products').delete().eq('id', p.id); fetchProducts(); } }} className="bg-white p-2 rounded-full hover:bg-red-500 hover:text-white"><Trash2 size={14}/></button>
-              </div>
-            </div>
-            <div className="p-5 flex-1 flex flex-col">
-              <p className="text-[9px] font-bold tracking-[0.2em] opacity-40 uppercase mb-1">{p.collection}</p>
-              <h3 className="text-lg font-serif mb-4 line-clamp-2">{p.name}</h3>
-              <div className="mt-auto pt-4 border-t border-black/5 flex justify-between items-center">
-                 <button onClick={() => window.open(`${baseUrl}?id=${p.id}`, '_blank')} className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider opacity-50 hover:opacity-100"><ExternalLink size={12}/> Preview</button>
-                 <button onClick={() => navigator.clipboard.writeText(`${baseUrl}?id=${p.id}`)} className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider opacity-50 hover:opacity-100"><LinkIcon size={12}/> Copy Link</button>
-              </div>
-            </div>
+
+      {/* ★ 検索・フィルター・レイアウト切り替えバー */}
+      <div className="max-w-[1800px] mx-auto px-8 py-6 flex flex-col md:flex-row gap-4 items-center justify-between border-b border-black/5 bg-[#f5f5f5]">
+        
+        <div className="flex items-center gap-4 w-full md:w-auto">
+          {/* 検索 */}
+          <div className="relative w-full md:w-80">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-30" />
+            <input 
+              type="text" 
+              placeholder="Search products..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white border border-gray-200 pl-10 pr-4 py-2 text-sm outline-none focus:border-black transition-colors rounded-none"
+            />
           </div>
-        ))}
+
+          {/* フィルター */}
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <Filter size={16} className="opacity-30" />
+            <select 
+              value={filterCollection} 
+              onChange={(e) => setFilterCollection(e.target.value)}
+              className="w-full md:w-48 bg-white border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black transition-colors rounded-none cursor-pointer"
+            >
+              {uniqueCollections.map(col => (
+                <option key={col} value={col}>{col}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* レイアウト切り替えボタン */}
+        <div className="flex items-center bg-gray-200 p-1 rounded-sm shrink-0">
+          <button 
+            onClick={() => setLayoutMode('list')} 
+            className={`p-1.5 transition-all ${layoutMode === 'list' ? 'bg-white shadow-sm text-black' : 'text-gray-500 hover:text-black'}`}
+            title="List View"
+          >
+            <List size={16} />
+          </button>
+          <button 
+            onClick={() => setLayoutMode('grid')} 
+            className={`p-1.5 transition-all ${layoutMode === 'grid' ? 'bg-white shadow-sm text-black' : 'text-gray-500 hover:text-black'}`}
+            title="Grid View"
+          >
+            <LayoutGrid size={16} />
+          </button>
+        </div>
+
+      </div>
+
+      {/* メイン: 製品グリッド / リスト */}
+      <main className="p-8 max-w-[1800px] mx-auto">
+        {view === 'loading' && <div className="text-center py-20 text-xs tracking-widest opacity-40"><Loader className="animate-spin inline-block mr-2" size={14}/>LOADING SYSTEM...</div>}
+        
+        {/* ★ モードに応じたレンダリング */}
+        {layoutMode === 'grid' ? (
+          /* グリッド表示（従来のカード型） */
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+            {filteredProducts.map(p => (
+              <div key={p.id} className="bg-white border border-black/5 group hover:shadow-lg transition duration-500 flex flex-col">
+                <div className="aspect-[4/3] relative overflow-hidden border-b border-black/5 bg-gray-50 cursor-pointer" onClick={() => openEditor(p)}>
+                  <img src={getImageUrl(p.image)} className="w-full h-full object-cover group-hover:scale-105 transition duration-700" loading="lazy" />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                    <Edit3 size={20} color="white"/>
+                  </div>
+                </div>
+                <div className="p-4 flex-1 flex flex-col">
+                  <p className="text-[9px] font-bold tracking-[0.2em] opacity-40 uppercase mb-1 truncate">{p.collection}</p>
+                  <h3 className="text-base font-serif mb-4 line-clamp-2 leading-snug">{p.name}</h3>
+                  <div className="mt-auto pt-3 border-t border-black/5 flex justify-between items-center">
+                     <button onClick={() => window.open(`${baseUrl}?id=${p.id}`, '_blank')} className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider opacity-50 hover:opacity-100 transition-opacity">
+                       <ExternalLink size={12}/> Preview
+                     </button>
+                     <button onClick={() => handleCopyLink(p.id)} className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider transition-colors duration-300 ${copyFeedback === p.id ? 'text-green-600 opacity-100' : 'opacity-50 hover:opacity-100'}`}>
+                       {copyFeedback === p.id ? <Check size={12}/> : <LinkIcon size={12}/>}
+                       {copyFeedback === p.id ? 'COPIED!' : 'COPY LINK'}
+                     </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* ★ リスト表示（テーブル型） */
+          <div className="flex flex-col gap-2">
+            {filteredProducts.map(p => (
+              <div key={p.id} className="flex flex-col md:flex-row md:items-center gap-4 bg-white border border-black/5 p-3 hover:shadow-md transition-shadow duration-300">
+                
+                {/* サムネイル小 */}
+                <div className="w-16 h-16 shrink-0 bg-gray-100 relative group cursor-pointer" onClick={() => openEditor(p)}>
+                  <img src={getImageUrl(p.image)} className="w-full h-full object-cover" loading="lazy" />
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                    <Edit3 size={12} color="white"/>
+                  </div>
+                </div>
+                
+                {/* テキスト情報 */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <p className="text-[10px] font-bold tracking-[0.2em] opacity-40 uppercase truncate">{p.collection}</p>
+                    {p.designer && <p className="text-[9px] opacity-30 truncate">/ {p.designer.toUpperCase()}</p>}
+                  </div>
+                  <h3 className="text-base font-serif truncate" style={{fontFamily: THEME.serif}}>{p.name}</h3>
+                </div>
+
+                {/* アクションボタン群 */}
+                <div className="flex items-center gap-2 shrink-0 md:justify-end">
+                  <button onClick={() => window.open(`${baseUrl}?id=${p.id}`, '_blank')} className="px-3 py-2 bg-gray-50 hover:bg-gray-100 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors">
+                    <ExternalLink size={12}/> View
+                  </button>
+                  <button onClick={() => handleCopyLink(p.id)} className={`px-3 py-2 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors ${copyFeedback === p.id ? 'bg-green-50 text-green-600' : 'bg-gray-50 hover:bg-gray-100'}`}>
+                    {copyFeedback === p.id ? <Check size={12}/> : <LinkIcon size={12}/>} Copy
+                  </button>
+                  <div className="w-px h-6 bg-gray-200 mx-1 hidden md:block"></div>
+                  <button onClick={() => openEditor(p)} className="p-2 text-gray-400 hover:text-black transition-colors"><Edit3 size={14}/></button>
+                  <button onClick={async () => { if(confirm('Delete?')) { await supabase.from('products').delete().eq('id', p.id); fetchProducts(); } }} className="p-2 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={14}/></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {view !== 'loading' && filteredProducts.length === 0 && (
+          <div className="text-center py-20 text-xs tracking-widest opacity-40">NO PRODUCTS FOUND.</div>
+        )}
       </main>
     </div>
   );
