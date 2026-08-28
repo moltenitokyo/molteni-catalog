@@ -242,9 +242,9 @@ export default function App() {
       <div className="fixed inset-0 w-full h-full bg-[#f5f5f5] md:bg-[#e5e5e5] flex justify-center items-center z-[100]">
         
         <a 
-          href={CONTACT_URL}
-          target="_blank"
-          rel="noreferrer"
+        href={`mailto:info@molteni.jp?subject=【「${currentProduct.name}」についてのお問い合わせ】`} 
+        target="_blank" 
+        rel="noreferrer"
           style={{
             position: 'fixed',
             bottom: '30px',
