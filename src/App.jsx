@@ -178,7 +178,7 @@ export default function App() {
 
             {/* コレクションのトップヘッダー */}
             <div style={{ padding: '60px 24px 40px 24px', textAlign: 'center', borderBottom: '1px solid #f0f0f0' }}>
-              <span style={{ fontFamily: THEME.sans, fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.2em', color: '#86868B', textTransform: 'uppercase' }}>COLLECTION</span>
+              <span style={{ fontFamily: THEME.sans, fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.2em', color: '#86868B', textTransform: 'uppercase' }}></span>
               <h1 style={{ fontFamily: THEME.serif, fontSize: '38px', fontWeight: 'normal', margin: '16px 0 0 0', textTransform: 'uppercase' }}>{currentCollection}</h1>
             </div>
 
