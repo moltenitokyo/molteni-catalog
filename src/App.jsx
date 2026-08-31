@@ -4,7 +4,7 @@ import {
   Plus, Edit3, Trash2, X, Upload, ExternalLink, RefreshCw, 
   FileText, ArrowRight, Wifi, WifiOff, Loader, Link as LinkIcon, 
   Check, ChevronLeft, PlayCircle, ShoppingBag, Code, Image as ImageIcon,
-  Search, Filter, LayoutGrid, List, Layers // Layersアイコン追加
+  Search, Filter, LayoutGrid, List, Layers
 } from 'lucide-react';
 
 // --- 設定エリア ---
@@ -14,8 +14,8 @@ const STORAGE_BUCKET = 'product-images';
 const STORAGE_URL = supabaseUrl ? `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/` : '';
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
-// お問い合わせ先URL
-const CONTACT_URL = "https://www.molteni.co.jp/contact/"; 
+// ★ お問い合わせ先のメールアドレス
+const CONTACT_EMAIL = "info@molteni.jp"; 
 
 // テーマ定数
 const THEME = {
@@ -57,7 +57,7 @@ export default function App() {
   const [view, setView] = useState('loading'); 
   const [currentProduct, setCurrentProduct] = useState(null);
   
-  // ★ コレクションビュー用のState
+  // コレクションビュー用のState
   const [currentCollection, setCurrentCollection] = useState(null);
 
   const [status, setStatus] = useState('Init...');
@@ -103,13 +103,12 @@ export default function App() {
   const checkRouting = (data) => {
     const params = new URLSearchParams(window.location.search);
     const idParam = params.get('id');
-    const colParam = params.get('collection'); // ★ URLからコレクション名を取得
+    const colParam = params.get('collection'); 
 
     if (idParam) {
       const target = data.find(p => p.id === parseInt(idParam));
       target ? openProduct(target) : setView('admin');
     } else if (colParam) {
-      // ★ コレクション用のURLだった場合
       setCurrentCollection(colParam);
       setView('collection');
     } else {
@@ -153,17 +152,34 @@ export default function App() {
   };
 
   // ---------------------------------------------------------
-  // サブビュー: Collection Page (★新規追加: コレクションまとめ画面)
+  // サブビュー: Collection Page (コレクションまとめ画面)
   // ---------------------------------------------------------
   if (view === 'collection' && currentCollection) {
-    // 該当コレクションの製品だけを抽出
     const colProducts = products.filter(p => p.collection === currentCollection);
+
+    // ★ コレクション用のメールURL生成
+    const mailSubject = encodeURIComponent(`【「${currentCollection}コレクション」についてのお問い合わせ】`);
+    const mailtoUrl = `mailto:${CONTACT_EMAIL}?subject=${mailSubject}`;
 
     return (
       <div className="fixed inset-0 w-full h-full bg-[#f5f5f5] md:bg-[#e5e5e5] flex justify-center items-center z-[100]">
         
-        {/* お問い合わせボタン (固定) */}
-        <a href={CONTACT_URL} target="_blank" rel="noreferrer" style={{ position: 'fixed', bottom: '30px', right: '30px', backgroundColor: 'rgba(55, 57, 59, 0.9)', color: '#ffffff', padding: '14px 20px', borderRadius: '0', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold', letterSpacing: '0.05em', fontFamily: THEME.sans, zIndex: 9999, backdropFilter: 'blur(4px)', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', transition: 'background-color 0.3s' }}>
+        {/* お問い合わせボタン (メール) */}
+        <a 
+          href={mailtoUrl}
+          style={{ 
+            position: 'fixed', bottom: '30px', right: '30px', 
+            backgroundColor: 'rgba(55, 57, 59, 0.9)', color: '#ffffff', 
+            padding: '14px 20px', borderRadius: '0', textDecoration: 'none', 
+            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+            fontSize: '11px', fontWeight: 'bold', letterSpacing: '0.05em', 
+            fontFamily: THEME.sans, zIndex: 9999, backdropFilter: 'blur(4px)', 
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)', transition: 'background-color 0.3s',
+            cursor: 'pointer'
+          }}
+          onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(55, 57, 59, 1)'}
+          onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(55, 57, 59, 0.9)'}
+        >
           <span>製品についてお問い合わせ</span>
         </a>
 
@@ -176,13 +192,11 @@ export default function App() {
                </button>
             )}
 
-            {/* コレクションのトップヘッダー */}
             <div style={{ padding: '60px 24px 40px 24px', textAlign: 'center', borderBottom: '1px solid #f0f0f0' }}>
-              <span style={{ fontFamily: THEME.sans, fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.2em', color: '#86868B', textTransform: 'uppercase' }}></span>
+              <span style={{ fontFamily: THEME.sans, fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.2em', color: '#86868B', textTransform: 'uppercase' }}>COLLECTION</span>
               <h1 style={{ fontFamily: THEME.serif, fontSize: '38px', fontWeight: 'normal', margin: '16px 0 0 0', textTransform: 'uppercase' }}>{currentCollection}</h1>
             </div>
 
-            {/* コレクション内の製品リスト */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {colProducts.map((p, index) => {
                 const sortedLinks = sortLinks(p.links);
@@ -198,7 +212,6 @@ export default function App() {
                         </p>
                       )}
 
-                      {/* ボタンエリア */}
                       <div style={{ display: 'flex', width: '100%', gap: '8px' }}>
                         {sortedLinks.map((link, i) => (
                           <a key={i} href={link.url} target="_blank" rel="noreferrer" style={{ flex: 1, height: '48px', backgroundColor: '#F2F2F2', color: THEME.text, display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', border: 'none' }}>
@@ -238,13 +251,16 @@ export default function App() {
     const sortedLinks = sortLinks(currentProduct.links);
     const hasBottomContent = videoHtml || currentProduct.secondImage;
 
+    // ★ 製品単体用のメールURL生成
+    const mailSubject = encodeURIComponent(`【「${currentProduct.name}」についてのお問い合わせ】`);
+    const mailtoUrl = `mailto:${CONTACT_EMAIL}?subject=${mailSubject}`;
+
     return (
       <div className="fixed inset-0 w-full h-full bg-[#f5f5f5] md:bg-[#e5e5e5] flex justify-center items-center z-[100]">
         
+        {/* お問い合わせボタン (メール) */}
         <a 
-        href={`mailto:info@molteni.jp?subject=【「${currentProduct.name}」についてのお問い合わせ】`} 
-        target="_blank" 
-        rel="noreferrer"
+          href={mailtoUrl}
           style={{
             position: 'fixed',
             bottom: '30px',
@@ -533,7 +549,6 @@ export default function App() {
               ))}
             </select>
             
-            {/* ★ コレクションリンクコピーボタン (フィルター選択時のみ表示) */}
             {filterCollection !== 'All' && (
               <div className="flex gap-1 ml-2">
                 <button 
