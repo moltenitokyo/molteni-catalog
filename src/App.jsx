@@ -14,8 +14,10 @@ const STORAGE_BUCKET = 'product-images';
 const STORAGE_URL = supabaseUrl ? `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/` : '';
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
+// お問い合わせ先メールアドレス
 const CONTACT_EMAIL = "info@molteni.jp"; 
 
+// テーマ定数
 const THEME = {
   bg: '#ffffff', 
   text: '#37393b', 
@@ -64,12 +66,9 @@ export default function App() {
   const [filterCollection, setFilterCollection] = useState('All');
   const [layoutMode, setLayoutMode] = useState('list'); 
 
-  // ★ ギャラリー（スライダー）の現在位置を管理
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
-
   const mainImageInputRef = useRef(null);
   const secondImageInputRef = useRef(null);
-  const galleryInputRef = useRef(null); // ★ ギャラリーアップロード用
+  const galleryInputRef = useRef(null);
 
   useEffect(() => {
     const setMeta = (name, content) => {
@@ -122,7 +121,6 @@ export default function App() {
 
   const openProduct = (p) => { 
     setCurrentProduct(p); 
-    setActiveImageIndex(0); // スライダー位置をリセット
     setView('product'); 
   };
   
@@ -134,7 +132,6 @@ export default function App() {
        if (p.links.detailsUrl) links.push({ type: 'detail', url: p.links.detailsUrl });
     }
     
-    // galleryがなければ空配列にする
     const gallery = p && Array.isArray(p.gallery) ? p.gallery : [];
 
     setCurrentProduct(p ? { ...p, links, gallery } : {
@@ -155,7 +152,6 @@ export default function App() {
     }
   };
 
-  // ★ 複数画像（ギャラリー）用のアップロード処理
   const handleGalleryUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -185,17 +181,10 @@ export default function App() {
     });
   };
 
-  // スライダーのスクロールを検知してドットを切り替える
-  const handleImageScroll = (e) => {
-    const scrollLeft = e.target.scrollLeft;
-    const width = e.target.offsetWidth;
-    const index = Math.round(scrollLeft / width);
-    setActiveImageIndex(index);
-  };
-
   // ---------------------------------------------------------
   // サブビュー: Collection Page
   // ---------------------------------------------------------
+  // ※コレクションビューではシンプルに見せるため、追加ギャラリー画像は非表示としメイン画像のみを表示しています。
   if (view === 'collection' && currentCollection) {
     const colProducts = products.filter(p => p.collection === currentCollection);
     const mailSubject = encodeURIComponent(`【「${currentCollection}コレクション」についてのお問い合わせ】`);
@@ -288,12 +277,10 @@ export default function App() {
     const videoHtml = makeAutoplayAndLoop(currentProduct.videoUrl);
     const sortedLinks = sortLinks(currentProduct.links);
     const hasBottomContent = videoHtml || currentProduct.secondImage;
+    const hasGallery = currentProduct.gallery && currentProduct.gallery.length > 0;
 
     const mailSubject = encodeURIComponent(`【「${currentProduct.name}」についてのお問い合わせ】`);
     const mailtoUrl = `mailto:${CONTACT_EMAIL}?subject=${mailSubject}`;
-
-    // ★ メイン画像と追加画像を結合して全画像の配列を作成
-    const allImages = [currentProduct.image, ...(currentProduct.gallery || [])].filter(Boolean);
 
     return (
       <div className="fixed inset-0 w-full h-full bg-[#f5f5f5] md:bg-[#e5e5e5] flex justify-center items-center z-[100]">
@@ -325,41 +312,14 @@ export default function App() {
                </button>
             )}
             
-            {/* ★ スワイプ可能な画像ギャラリー */}
+            {/* ★ メイン画像 (1枚のみ表示) */}
             <div className="w-full relative shrink-0">
-              <div 
-                className="w-full flex overflow-x-auto snap-x snap-mandatory no-scrollbar scroll-smooth"
-                onScroll={handleImageScroll}
-                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }} // IE/Firefox用スクロールバー非表示
-              >
-                {allImages.map((img, idx) => (
-                  <div key={idx} className="w-full shrink-0 snap-center relative">
-                    <img 
-                      src={getImageUrl(img)} 
-                      alt={`${currentProduct.name} - View ${idx + 1}`} 
-                      className="block w-full h-auto max-w-full"
-                      style={{ width: '100%', height: 'auto', display: 'block' }}
-                    />
-                  </div>
-                ))}
-              </div>
-
-              {/* インジケーター (2枚以上ある場合のみ表示) */}
-              {allImages.length > 1 && (
-                <div className="absolute bottom-4 left-0 w-full flex justify-center gap-1.5 z-10 pointer-events-none">
-                  {allImages.map((_, idx) => (
-                    <div 
-                      key={idx} 
-                      style={{
-                        width: '6px', height: '6px', borderRadius: '50%',
-                        backgroundColor: activeImageIndex === idx ? 'rgba(55, 57, 59, 0.8)' : 'rgba(55, 57, 59, 0.2)',
-                        transition: 'all 0.3s ease',
-                        transform: activeImageIndex === idx ? 'scale(1.2)' : 'scale(1)'
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
+              <img 
+                src={getImageUrl(currentProduct.image) || "https://via.placeholder.com/1080x1920"} 
+                alt={currentProduct.name} 
+                className="block w-full h-auto max-w-full"
+                style={{ width: '100%', height: 'auto', display: 'block' }}
+              />
             </div>
 
             <div className="px-8 py-10 flex flex-col grow bg-white">
@@ -383,7 +343,7 @@ export default function App() {
                 </p>
               </div>
 
-              <div style={{ marginTop: 'auto', paddingBottom: '24px', display: 'flex', width: '100%', gap: '8px' }}>
+              <div style={{ paddingBottom: '24px', display: 'flex', width: '100%', gap: '8px' }}>
                 {sortedLinks.map((link, i) => (
                   <a key={i} href={link.url} target="_blank" rel="noreferrer" style={{ flex: 1, height: '52px', backgroundColor: '#F2F2F2', color: THEME.text, display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', border: 'none', cursor: 'pointer' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#E5E5E5'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#F2F2F2'}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -396,13 +356,29 @@ export default function App() {
                 ))}
               </div>
 
+              {/* Bottom Media (Video / 2nd Image) */}
               {hasBottomContent && (
-                <div style={{ marginTop: '24px', paddingTop: '0', borderTop: 'none', width: '100%', overflow: 'hidden' }}>
+                <div style={{ marginTop: '16px', width: '100%', overflow: 'hidden' }}>
                   {videoHtml ? (
                     <div dangerouslySetInnerHTML={{ __html: videoHtml }} className="w-full [&>iframe]:w-full [&>iframe]:h-auto relative z-0" />
                   ) : (
                     <img src={getImageUrl(currentProduct.secondImage)} alt="Second View" style={{ width: '100%', height: 'auto', display: 'block' }} />
                   )}
+                </div>
+              )}
+              
+              {/* ★ 追加ギャラリー画像 (一番下へ縦に並べる) */}
+              {hasGallery && (
+                <div style={{ marginTop: hasBottomContent ? '16px' : '0px', width: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {currentProduct.gallery.map((img, idx) => (
+                    <img 
+                      key={idx}
+                      src={getImageUrl(img)} 
+                      alt={`${currentProduct.name} detail ${idx + 1}`} 
+                      style={{ width: '100%', height: 'auto', display: 'block' }}
+                      loading="lazy"
+                    />
+                  ))}
                 </div>
               )}
               
@@ -442,33 +418,12 @@ export default function App() {
           </div>
           
           <div className="space-y-8">
-            {/* メイン画像 */}
             <div>
               <label className="text-[10px] font-bold tracking-[0.2em] opacity-40 uppercase block mb-2">Main Image (Cover)</label>
               <div className="cursor-pointer border border-dashed border-gray-300 bg-white hover:border-black min-h-[200px] flex flex-col items-center justify-center relative" onClick={() => mainImageInputRef.current.click()}>
                 {currentProduct.image ? <img src={getImageUrl(currentProduct.image)} className="w-full h-auto" /> : <div className="text-center opacity-40 py-10"><Upload className="mx-auto mb-2"/><span className="text-[10px] uppercase tracking-widest">Upload Image</span></div>}
                 <input ref={mainImageInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => handleUpload(e.target.files[0], 'image')}/>
               </div>
-            </div>
-
-            {/* ★ 追加ギャラリー画像 */}
-            <div className="bg-white p-5 border border-black/5">
-              <label className="text-[10px] font-bold tracking-[0.2em] opacity-40 uppercase block mb-4">Additional Gallery Images (Optional)</label>
-              <div className="grid grid-cols-3 gap-2">
-                {currentProduct.gallery?.map((img, idx) => (
-                  <div key={idx} className="relative aspect-square bg-gray-100 border border-gray-200">
-                    <img src={getImageUrl(img)} className="w-full h-full object-cover" />
-                    <button onClick={() => removeGalleryImage(idx)} className="absolute top-1 right-1 bg-white rounded-full p-1 shadow hover:text-red-500"><X size={12}/></button>
-                  </div>
-                ))}
-                {/* 追加ボタン */}
-                <div className="cursor-pointer border border-dashed border-gray-300 bg-gray-50 hover:border-black aspect-square flex flex-col items-center justify-center relative transition-colors" onClick={() => galleryInputRef.current.click()}>
-                  <Plus size={16} className="opacity-40 mb-1" />
-                  <span className="text-[8px] uppercase tracking-widest opacity-40">Add</span>
-                  <input ref={galleryInputRef} type="file" className="hidden" accept="image/*" onChange={handleGalleryUpload} />
-                </div>
-              </div>
-              <p className="text-[9px] text-gray-400 mt-3">Upload multiple images to create a swipeable carousel on the product page.</p>
             </div>
 
             <div className="space-y-4">
@@ -491,6 +446,26 @@ export default function App() {
                   <input ref={secondImageInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => handleUpload(e.target.files[0], 'secondImage')}/>
                 </div>
               </div>
+            </div>
+
+            {/* ★ 追加ギャラリー画像 */}
+            <div className="bg-white p-5 border border-black/5">
+              <label className="text-[10px] font-bold tracking-[0.2em] opacity-40 uppercase block mb-4">Additional Gallery Images (Bottom)</label>
+              <div className="grid grid-cols-3 gap-2">
+                {currentProduct.gallery?.map((img, idx) => (
+                  <div key={idx} className="relative aspect-square bg-gray-100 border border-gray-200">
+                    <img src={getImageUrl(img)} className="w-full h-full object-cover" />
+                    <button onClick={() => removeGalleryImage(idx)} className="absolute top-1 right-1 bg-white rounded-full p-1 shadow hover:text-red-500"><X size={12}/></button>
+                  </div>
+                ))}
+                {/* 追加ボタン */}
+                <div className="cursor-pointer border border-dashed border-gray-300 bg-gray-50 hover:border-black aspect-square flex flex-col items-center justify-center relative transition-colors" onClick={() => galleryInputRef.current.click()}>
+                  <Plus size={16} className="opacity-40 mb-1" />
+                  <span className="text-[8px] uppercase tracking-widest opacity-40">Add</span>
+                  <input ref={galleryInputRef} type="file" className="hidden" accept="image/*" onChange={handleGalleryUpload} />
+                </div>
+              </div>
+              <p className="text-[9px] text-gray-400 mt-3">Images uploaded here will be displayed vertically at the very bottom of the product page.</p>
             </div>
 
             <div className="bg-white p-5 border border-black/5 space-y-4">
