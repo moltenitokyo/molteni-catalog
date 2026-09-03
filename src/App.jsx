@@ -14,10 +14,8 @@ const STORAGE_BUCKET = 'product-images';
 const STORAGE_URL = supabaseUrl ? `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/` : '';
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
-// ★ お問い合わせ先のメールアドレス
 const CONTACT_EMAIL = "info@molteni.jp"; 
 
-// テーマ定数
 const THEME = {
   bg: '#ffffff', 
   text: '#37393b', 
@@ -57,9 +55,7 @@ export default function App() {
   const [view, setView] = useState('loading'); 
   const [currentProduct, setCurrentProduct] = useState(null);
   
-  // コレクションビュー用のState
   const [currentCollection, setCurrentCollection] = useState(null);
-
   const [status, setStatus] = useState('Init...');
   const [baseUrl, setBaseUrl] = useState('');
   const [copyFeedback, setCopyFeedback] = useState(null);
@@ -68,8 +64,12 @@ export default function App() {
   const [filterCollection, setFilterCollection] = useState('All');
   const [layoutMode, setLayoutMode] = useState('list'); 
 
+  // ★ ギャラリー（スライダー）の現在位置を管理
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
   const mainImageInputRef = useRef(null);
   const secondImageInputRef = useRef(null);
+  const galleryInputRef = useRef(null); // ★ ギャラリーアップロード用
 
   useEffect(() => {
     const setMeta = (name, content) => {
@@ -107,7 +107,11 @@ export default function App() {
 
     if (idParam) {
       const target = data.find(p => p.id === parseInt(idParam));
-      target ? openProduct(target) : setView('admin');
+      if (target) {
+        openProduct(target);
+      } else {
+        setView('admin');
+      }
     } else if (colParam) {
       setCurrentCollection(colParam);
       setView('collection');
@@ -116,7 +120,11 @@ export default function App() {
     }
   };
 
-  const openProduct = (p) => { setCurrentProduct(p); setView('product'); };
+  const openProduct = (p) => { 
+    setCurrentProduct(p); 
+    setActiveImageIndex(0); // スライダー位置をリセット
+    setView('product'); 
+  };
   
   const openEditor = (p) => {
     let links = [];
@@ -126,9 +134,12 @@ export default function App() {
        if (p.links.detailsUrl) links.push({ type: 'detail', url: p.links.detailsUrl });
     }
     
-    setCurrentProduct(p ? { ...p, links } : {
+    // galleryがなければ空配列にする
+    const gallery = p && Array.isArray(p.gallery) ? p.gallery : [];
+
+    setCurrentProduct(p ? { ...p, links, gallery } : {
       name: '', collection: '', designer: '', price: '', description: '',
-      links: [], videoUrl: '', image: '', secondImage: ''
+      links: [], gallery: [], videoUrl: '', image: '', secondImage: ''
     });
     setView('editor');
   };
@@ -144,6 +155,29 @@ export default function App() {
     }
   };
 
+  // ★ 複数画像（ギャラリー）用のアップロード処理
+  const handleGalleryUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const name = `${Math.random().toString(36).substring(2)}.${file.name.split('.').pop()}`;
+    const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(name, file);
+    if (!error) {
+      setCurrentProduct(prev => ({
+        ...prev,
+        gallery: [...(prev.gallery || []), name]
+      }));
+    } else {
+      alert('Upload Error');
+    }
+  };
+
+  const removeGalleryImage = (indexToRemove) => {
+    setCurrentProduct(prev => ({
+      ...prev,
+      gallery: prev.gallery.filter((_, i) => i !== indexToRemove)
+    }));
+  };
+
   const handleCopyLink = (text, idForFeedback) => {
     navigator.clipboard.writeText(text).then(() => {
       setCopyFeedback(idForFeedback);
@@ -151,20 +185,25 @@ export default function App() {
     });
   };
 
+  // スライダーのスクロールを検知してドットを切り替える
+  const handleImageScroll = (e) => {
+    const scrollLeft = e.target.scrollLeft;
+    const width = e.target.offsetWidth;
+    const index = Math.round(scrollLeft / width);
+    setActiveImageIndex(index);
+  };
+
   // ---------------------------------------------------------
-  // サブビュー: Collection Page (コレクションまとめ画面)
+  // サブビュー: Collection Page
   // ---------------------------------------------------------
   if (view === 'collection' && currentCollection) {
     const colProducts = products.filter(p => p.collection === currentCollection);
-
-    // ★ コレクション用のメールURL生成
     const mailSubject = encodeURIComponent(`【「${currentCollection}コレクション」についてのお問い合わせ】`);
     const mailtoUrl = `mailto:${CONTACT_EMAIL}?subject=${mailSubject}`;
 
     return (
       <div className="fixed inset-0 w-full h-full bg-[#f5f5f5] md:bg-[#e5e5e5] flex justify-center items-center z-[100]">
         
-        {/* お問い合わせボタン (メール) */}
         <a 
           href={mailtoUrl}
           style={{ 
@@ -174,8 +213,7 @@ export default function App() {
             display: 'flex', alignItems: 'center', justifyContent: 'center', 
             fontSize: '11px', fontWeight: 'bold', letterSpacing: '0.05em', 
             fontFamily: THEME.sans, zIndex: 9999, backdropFilter: 'blur(4px)', 
-            boxShadow: '0 4px 20px rgba(0,0,0,0.15)', transition: 'background-color 0.3s',
-            cursor: 'pointer'
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)', transition: 'background-color 0.3s', cursor: 'pointer' 
           }}
           onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(55, 57, 59, 1)'}
           onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(55, 57, 59, 0.9)'}
@@ -251,37 +289,25 @@ export default function App() {
     const sortedLinks = sortLinks(currentProduct.links);
     const hasBottomContent = videoHtml || currentProduct.secondImage;
 
-    // ★ 製品単体用のメールURL生成
     const mailSubject = encodeURIComponent(`【「${currentProduct.name}」についてのお問い合わせ】`);
     const mailtoUrl = `mailto:${CONTACT_EMAIL}?subject=${mailSubject}`;
+
+    // ★ メイン画像と追加画像を結合して全画像の配列を作成
+    const allImages = [currentProduct.image, ...(currentProduct.gallery || [])].filter(Boolean);
 
     return (
       <div className="fixed inset-0 w-full h-full bg-[#f5f5f5] md:bg-[#e5e5e5] flex justify-center items-center z-[100]">
         
-        {/* お問い合わせボタン (メール) */}
         <a 
           href={mailtoUrl}
           style={{
-            position: 'fixed',
-            bottom: '30px',
-            right: '30px',
-            backgroundColor: 'rgba(55, 57, 59, 0.9)', 
-            color: '#ffffff',
-            padding: '14px 20px', 
-            borderRadius: '0',
-            textDecoration: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '11px',
-            fontWeight: 'bold',
-            letterSpacing: '0.05em', 
-            fontFamily: THEME.sans,
-            zIndex: 9999, 
-            backdropFilter: 'blur(4px)', 
-            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-            transition: 'background-color 0.3s',
-            cursor: 'pointer'
+            position: 'fixed', bottom: '30px', right: '30px',
+            backgroundColor: 'rgba(55, 57, 59, 0.9)', color: '#ffffff',
+            padding: '14px 20px', borderRadius: '0', textDecoration: 'none',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '11px', fontWeight: 'bold', letterSpacing: '0.05em', 
+            fontFamily: THEME.sans, zIndex: 9999, backdropFilter: 'blur(4px)', 
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)', transition: 'background-color 0.3s', cursor: 'pointer'
           }}
           onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(55, 57, 59, 1)'}
           onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(55, 57, 59, 0.9)'}
@@ -299,43 +325,51 @@ export default function App() {
                </button>
             )}
             
+            {/* ★ スワイプ可能な画像ギャラリー */}
             <div className="w-full relative shrink-0">
-              <img 
-                src={getImageUrl(currentProduct.image) || "https://via.placeholder.com/1080x1920"} 
-                alt={currentProduct.name} 
-                className="block w-full h-auto max-w-full"
-                style={{ width: '100%', height: 'auto', display: 'block' }}
-              />
+              <div 
+                className="w-full flex overflow-x-auto snap-x snap-mandatory no-scrollbar scroll-smooth"
+                onScroll={handleImageScroll}
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }} // IE/Firefox用スクロールバー非表示
+              >
+                {allImages.map((img, idx) => (
+                  <div key={idx} className="w-full shrink-0 snap-center relative">
+                    <img 
+                      src={getImageUrl(img)} 
+                      alt={`${currentProduct.name} - View ${idx + 1}`} 
+                      className="block w-full h-auto max-w-full"
+                      style={{ width: '100%', height: 'auto', display: 'block' }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* インジケーター (2枚以上ある場合のみ表示) */}
+              {allImages.length > 1 && (
+                <div className="absolute bottom-4 left-0 w-full flex justify-center gap-1.5 z-10 pointer-events-none">
+                  {allImages.map((_, idx) => (
+                    <div 
+                      key={idx} 
+                      style={{
+                        width: '6px', height: '6px', borderRadius: '50%',
+                        backgroundColor: activeImageIndex === idx ? 'rgba(55, 57, 59, 0.8)' : 'rgba(55, 57, 59, 0.2)',
+                        transition: 'all 0.3s ease',
+                        transform: activeImageIndex === idx ? 'scale(1.2)' : 'scale(1)'
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="px-8 py-10 flex flex-col grow bg-white">
               
               <div style={{ marginBottom: '24px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                <h1 style={{
-                  fontFamily: THEME.serif,
-                  fontSize: '36px',
-                  lineHeight: '1',
-                  fontWeight: 'normal',
-                  margin: '32px 0 12px 0',
-                  color: THEME.text,
-                  wordBreak: 'break-word'
-                }}>
+                <h1 style={{ fontFamily: THEME.serif, fontSize: '36px', lineHeight: '1', fontWeight: 'normal', margin: '32px 0 12px 0', color: THEME.text, wordBreak: 'break-word' }}>
                   {currentProduct.name}
                 </h1>
 
-                <div style={{
-                  fontFamily: THEME.serif,
-                  fontSize: '12px',
-                  fontWeight: 'normal',
-                  letterSpacing: '0.1em',
-                  color: THEME.text,
-                  textTransform: 'uppercase',
-                  marginBottom: '20px', 
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '12px'
-                }}>
+                <div style={{ fontFamily: THEME.serif, fontSize: '12px', fontWeight: 'normal', letterSpacing: '0.1em', color: THEME.text, textTransform: 'uppercase', marginBottom: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                   <span style={{ fontWeight: 'bold' }}>{currentProduct.collection}</span>
                   {currentProduct.designer && (
                     <span style={{ fontSize: '11px', opacity: 1, fontWeight: 'bold' }}>
@@ -344,49 +378,14 @@ export default function App() {
                   )}
                 </div>
 
-                <p style={{
-                  fontFamily: THEME.sans,
-                  fontSize: '14px',
-                  lineHeight: '1.8',
-                  color: THEME.text,
-                  fontWeight: '400',
-                  margin: '0 auto',
-                  textAlign: 'center',
-                  width: '88%',
-                  maxWidth: '500px'
-                }}>
+                <p style={{ fontFamily: THEME.sans, fontSize: '14px', lineHeight: '1.8', color: THEME.text, fontWeight: '400', margin: '0 auto', textAlign: 'center', width: '88%', maxWidth: '500px' }}>
                   {currentProduct.description}
                 </p>
               </div>
 
-              <div style={{ 
-                marginTop: 'auto', 
-                paddingBottom: '24px', 
-                display: 'flex', 
-                width: '100%', 
-                gap: '8px' 
-              }}>
+              <div style={{ marginTop: 'auto', paddingBottom: '24px', display: 'flex', width: '100%', gap: '8px' }}>
                 {sortedLinks.map((link, i) => (
-                  <a 
-                    key={i} 
-                    href={link.url} 
-                    target="_blank" 
-                    rel="noreferrer" 
-                    style={{
-                      flex: 1,                 
-                      height: '52px',          
-                      backgroundColor: '#F2F2F2', 
-                      color: THEME.text,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center', 
-                      textDecoration: 'none',   
-                      border: 'none',
-                      cursor: 'pointer',
-                    }}
-                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#E5E5E5'}
-                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#F2F2F2'}
-                  >
+                  <a key={i} href={link.url} target="_blank" rel="noreferrer" style={{ flex: 1, height: '52px', backgroundColor: '#F2F2F2', color: THEME.text, display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', border: 'none', cursor: 'pointer' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#E5E5E5'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#F2F2F2'}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ fontSize: '11px', fontWeight: 'bold', letterSpacing: '0.15em', textTransform: 'uppercase', fontFamily: THEME.sans }}>
                         {link.type === 'price' ? 'Price' : link.type === 'product' ? 'Product' : 'Detail'}
@@ -402,11 +401,7 @@ export default function App() {
                   {videoHtml ? (
                     <div dangerouslySetInnerHTML={{ __html: videoHtml }} className="w-full [&>iframe]:w-full [&>iframe]:h-auto relative z-0" />
                   ) : (
-                    <img 
-                      src={getImageUrl(currentProduct.secondImage)} 
-                      alt="Second View" 
-                      style={{ width: '100%', height: 'auto', display: 'block' }}
-                    />
+                    <img src={getImageUrl(currentProduct.secondImage)} alt="Second View" style={{ width: '100%', height: 'auto', display: 'block' }} />
                   )}
                 </div>
               )}
@@ -447,12 +442,33 @@ export default function App() {
           </div>
           
           <div className="space-y-8">
+            {/* メイン画像 */}
             <div>
-              <label className="text-[10px] font-bold tracking-[0.2em] opacity-40 uppercase block mb-2">Main Image</label>
+              <label className="text-[10px] font-bold tracking-[0.2em] opacity-40 uppercase block mb-2">Main Image (Cover)</label>
               <div className="cursor-pointer border border-dashed border-gray-300 bg-white hover:border-black min-h-[200px] flex flex-col items-center justify-center relative" onClick={() => mainImageInputRef.current.click()}>
                 {currentProduct.image ? <img src={getImageUrl(currentProduct.image)} className="w-full h-auto" /> : <div className="text-center opacity-40 py-10"><Upload className="mx-auto mb-2"/><span className="text-[10px] uppercase tracking-widest">Upload Image</span></div>}
                 <input ref={mainImageInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => handleUpload(e.target.files[0], 'image')}/>
               </div>
+            </div>
+
+            {/* ★ 追加ギャラリー画像 */}
+            <div className="bg-white p-5 border border-black/5">
+              <label className="text-[10px] font-bold tracking-[0.2em] opacity-40 uppercase block mb-4">Additional Gallery Images (Optional)</label>
+              <div className="grid grid-cols-3 gap-2">
+                {currentProduct.gallery?.map((img, idx) => (
+                  <div key={idx} className="relative aspect-square bg-gray-100 border border-gray-200">
+                    <img src={getImageUrl(img)} className="w-full h-full object-cover" />
+                    <button onClick={() => removeGalleryImage(idx)} className="absolute top-1 right-1 bg-white rounded-full p-1 shadow hover:text-red-500"><X size={12}/></button>
+                  </div>
+                ))}
+                {/* 追加ボタン */}
+                <div className="cursor-pointer border border-dashed border-gray-300 bg-gray-50 hover:border-black aspect-square flex flex-col items-center justify-center relative transition-colors" onClick={() => galleryInputRef.current.click()}>
+                  <Plus size={16} className="opacity-40 mb-1" />
+                  <span className="text-[8px] uppercase tracking-widest opacity-40">Add</span>
+                  <input ref={galleryInputRef} type="file" className="hidden" accept="image/*" onChange={handleGalleryUpload} />
+                </div>
+              </div>
+              <p className="text-[9px] text-gray-400 mt-3">Upload multiple images to create a swipeable carousel on the product page.</p>
             </div>
 
             <div className="space-y-4">
