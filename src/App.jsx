@@ -66,6 +66,8 @@ export default function App() {
   const [filterCollection, setFilterCollection] = useState('All');
   const [layoutMode, setLayoutMode] = useState('list'); 
 
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
   const mainImageInputRef = useRef(null);
   const secondImageInputRef = useRef(null);
   const galleryInputRef = useRef(null);
@@ -94,7 +96,12 @@ export default function App() {
 
   const fetchProducts = async () => {
     setStatus('Syncing...');
-    const { data, error } = await supabase.from('products').select('*').order('id', { ascending: false });
+    // ★表示順（sort_order）を第一優先に、新着順（id）を第二優先にしてデータを取得
+    const { data, error } = await supabase.from('products')
+      .select('*')
+      .order('sort_order', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: false });
+
     if (error) { console.error(error); setStatus('Error'); }
     else { setProducts(data || []); setStatus('Online'); checkRouting(data || []); }
   };
@@ -121,6 +128,7 @@ export default function App() {
 
   const openProduct = (p) => { 
     setCurrentProduct(p); 
+    setActiveImageIndex(0); 
     setView('product'); 
   };
   
@@ -136,6 +144,7 @@ export default function App() {
 
     setCurrentProduct(p ? { ...p, links, gallery } : {
       name: '', collection: '', designer: '', price: '', description: '',
+      sort_order: 999, // ★新規作成時のデフォルト表示順
       links: [], gallery: [], videoUrl: '', image: '', secondImage: ''
     });
     setView('editor');
@@ -181,10 +190,16 @@ export default function App() {
     });
   };
 
+  const handleImageScroll = (e) => {
+    const scrollLeft = e.target.scrollLeft;
+    const width = e.target.offsetWidth;
+    const index = Math.round(scrollLeft / width);
+    setActiveImageIndex(index);
+  };
+
   // ---------------------------------------------------------
   // サブビュー: Collection Page
   // ---------------------------------------------------------
-  // ※コレクションビューではシンプルに見せるため、追加ギャラリー画像は非表示としメイン画像のみを表示しています。
   if (view === 'collection' && currentCollection) {
     const colProducts = products.filter(p => p.collection === currentCollection);
     const mailSubject = encodeURIComponent(`【「${currentCollection}コレクション」についてのお問い合わせ】`);
@@ -282,6 +297,8 @@ export default function App() {
     const mailSubject = encodeURIComponent(`【「${currentProduct.name}」についてのお問い合わせ】`);
     const mailtoUrl = `mailto:${CONTACT_EMAIL}?subject=${mailSubject}`;
 
+    const allImages = [currentProduct.image, ...(currentProduct.gallery || [])].filter(Boolean);
+
     return (
       <div className="fixed inset-0 w-full h-full bg-[#f5f5f5] md:bg-[#e5e5e5] flex justify-center items-center z-[100]">
         
@@ -312,14 +329,39 @@ export default function App() {
                </button>
             )}
             
-            {/* ★ メイン画像 (1枚のみ表示) */}
             <div className="w-full relative shrink-0">
-              <img 
-                src={getImageUrl(currentProduct.image) || "https://via.placeholder.com/1080x1920"} 
-                alt={currentProduct.name} 
-                className="block w-full h-auto max-w-full"
-                style={{ width: '100%', height: 'auto', display: 'block' }}
-              />
+              <div 
+                className="w-full flex overflow-x-auto snap-x snap-mandatory no-scrollbar scroll-smooth"
+                onScroll={handleImageScroll}
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }} 
+              >
+                {allImages.map((img, idx) => (
+                  <div key={idx} className="w-full shrink-0 snap-center relative">
+                    <img 
+                      src={getImageUrl(img)} 
+                      alt={`${currentProduct.name} - View ${idx + 1}`} 
+                      className="block w-full h-auto max-w-full"
+                      style={{ width: '100%', height: 'auto', display: 'block' }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {allImages.length > 1 && (
+                <div className="absolute bottom-4 left-0 w-full flex justify-center gap-1.5 z-10 pointer-events-none">
+                  {allImages.map((_, idx) => (
+                    <div 
+                      key={idx} 
+                      style={{
+                        width: '6px', height: '6px', borderRadius: '50%',
+                        backgroundColor: activeImageIndex === idx ? 'rgba(55, 57, 59, 0.8)' : 'rgba(55, 57, 59, 0.2)',
+                        transition: 'all 0.3s ease',
+                        transform: activeImageIndex === idx ? 'scale(1.2)' : 'scale(1)'
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="px-8 py-10 flex flex-col grow bg-white">
@@ -343,7 +385,7 @@ export default function App() {
                 </p>
               </div>
 
-              <div style={{ paddingBottom: '24px', display: 'flex', width: '100%', gap: '8px' }}>
+              <div style={{ marginTop: 'auto', paddingBottom: '24px', display: 'flex', width: '100%', gap: '8px' }}>
                 {sortedLinks.map((link, i) => (
                   <a key={i} href={link.url} target="_blank" rel="noreferrer" style={{ flex: 1, height: '52px', backgroundColor: '#F2F2F2', color: THEME.text, display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', border: 'none', cursor: 'pointer' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#E5E5E5'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#F2F2F2'}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -356,9 +398,8 @@ export default function App() {
                 ))}
               </div>
 
-              {/* Bottom Media (Video / 2nd Image) */}
               {hasBottomContent && (
-                <div style={{ marginTop: '16px', width: '100%', overflow: 'hidden' }}>
+                <div style={{ marginTop: '24px', paddingTop: '0', borderTop: 'none', width: '100%', overflow: 'hidden' }}>
                   {videoHtml ? (
                     <div dangerouslySetInnerHTML={{ __html: videoHtml }} className="w-full [&>iframe]:w-full [&>iframe]:h-auto relative z-0" />
                   ) : (
@@ -367,7 +408,6 @@ export default function App() {
                 </div>
               )}
               
-              {/* ★ 追加ギャラリー画像 (一番下へ縦に並べる) */}
               {hasGallery && (
                 <div style={{ marginTop: hasBottomContent ? '16px' : '0px', width: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   {currentProduct.gallery.map((img, idx) => (
@@ -430,6 +470,20 @@ export default function App() {
               <input value={currentProduct.collection} onChange={e => setCurrentProduct({...currentProduct, collection: e.target.value})} placeholder="Collection (e.g. Chair)" className="w-full border-b border-gray-300 py-2 text-sm outline-none bg-transparent"/>
               <input value={currentProduct.name} onChange={e => setCurrentProduct({...currentProduct, name: e.target.value})} placeholder="Product Name (e.g. Lia)" className="w-full border-b border-gray-300 py-2 text-xl font-serif outline-none bg-transparent"/>
               <input value={currentProduct.designer || ''} onChange={e => setCurrentProduct({...currentProduct, designer: e.target.value})} placeholder="Designer (e.g. Gio Ponti)" className="w-full border-b border-gray-300 py-2 text-sm outline-none bg-transparent"/>
+              
+              {/* ★ 表示順（Sort Order）入力欄 */}
+              <div className="flex items-center gap-4 bg-white p-3 border border-gray-200">
+                <label className="text-[10px] font-bold tracking-[0.2em] opacity-40 uppercase whitespace-nowrap">Sort Order</label>
+                <input 
+                  type="number" 
+                  value={currentProduct.sort_order || ''} 
+                  onChange={e => setCurrentProduct({...currentProduct, sort_order: parseInt(e.target.value) || 999})} 
+                  placeholder="1" 
+                  className="w-20 border-b border-gray-300 py-1 text-sm outline-none bg-transparent text-center"
+                />
+                <span className="text-[9px] text-gray-400 ml-2">※ 1が一番上に表示されます (未入力: 999)</span>
+              </div>
+
               <textarea value={currentProduct.description} onChange={e => setCurrentProduct({...currentProduct, description: e.target.value})} placeholder="Description" className="w-full bg-white p-3 text-sm h-32 border border-gray-200 resize-none font-serif"/>
             </div>
 
@@ -448,7 +502,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* ★ 追加ギャラリー画像 */}
             <div className="bg-white p-5 border border-black/5">
               <label className="text-[10px] font-bold tracking-[0.2em] opacity-40 uppercase block mb-4">Additional Gallery Images (Bottom)</label>
               <div className="grid grid-cols-3 gap-2">
@@ -458,7 +511,6 @@ export default function App() {
                     <button onClick={() => removeGalleryImage(idx)} className="absolute top-1 right-1 bg-white rounded-full p-1 shadow hover:text-red-500"><X size={12}/></button>
                   </div>
                 ))}
-                {/* 追加ボタン */}
                 <div className="cursor-pointer border border-dashed border-gray-300 bg-gray-50 hover:border-black aspect-square flex flex-col items-center justify-center relative transition-colors" onClick={() => galleryInputRef.current.click()}>
                   <Plus size={16} className="opacity-40 mb-1" />
                   <span className="text-[8px] uppercase tracking-widest opacity-40">Add</span>
@@ -623,6 +675,7 @@ export default function App() {
                 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2 mb-1">
+                    <span className="inline-block bg-gray-200 text-[9px] font-bold px-1.5 py-0.5 mr-2 rounded-sm">{p.sort_order || 999}</span>
                     <p className="text-[10px] font-bold tracking-[0.2em] opacity-40 uppercase truncate">{p.collection}</p>
                     {p.designer && <p className="text-[9px] opacity-30 truncate">/ {p.designer.toUpperCase()}</p>}
                   </div>
